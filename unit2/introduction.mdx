@@ -1,0 +1,38 @@
+# 에이전트 프레임워크 소개
+
+<img src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit2/thumbnail.jpg" alt="Thumbnail"/>
+
+**다양한 에이전트 프레임워크**를 탐험할 두 번째 유닛에 오신 것을 환영합니다. 이 프레임워크들을 사용하여 강력한 에이전트 애플리케이션을 구축할 수 있습니다.
+
+우리는 다음을 공부할 것입니다:
+
+- Unit 2.1에서: [smolagents](https://huggingface.co/docs/smolagents/en/index)
+- Unit 2.2에서: [LlamaIndex](https://www.llamaindex.ai/)
+- Unit 2.3에서: [LangGraph](https://www.langchain.com/langgraph)
+
+시작해볼까요! 🕵
+
+## 에이전트 프레임워크를 사용해야 하는 경우
+
+에이전트 프레임워크는 **LLM을 중심으로 애플리케이션을 구축할 때 항상 필요한 것은 아닙니다**. 이들은 특정 작업을 효율적으로 해결하기 위한 워크플로우의 유연성을 제공하지만, 항상 필요한 것은 아닙니다.
+
+때로는 사용자 요청을 충족시키기 위해 **미리 정의된 워크플로우로 충분**할 수 있으며, 이런 경우 에이전트 프레임워크가 실제로 필요하지 않을 수 있습니다. 프롬프트의 체인과 같이 에이전트를 구축하는 접근 방식이 단순한 경우, 일반 코드를 사용하는 것만으로도 충분할 수 있습니다. 이렇게 하면 개발자가 추상화 없이 **자신의 시스템을 완전히 제어하고 이해**할 수 있다는 장점이 있습니다.
+
+하지만 LLM이 함수를 호출하거나 여러 에이전트를 사용하는 것과 같이 워크플로우가 더 복잡해질 때는, 이러한 추상화가 도움이 되기 시작합니다.
+
+이러한 아이디어를 고려할 때, 우리는 이미 몇 가지 필요한 기능들을 식별할 수 있습니다:
+
+* 시스템을 구동하는 *LLM 엔진*
+* 에이전트가 접근할 수 있는 *도구 목록*
+* LLM 출력에서 도구 호출을 추출하는 *파서*
+* 파서와 동기화된 *시스템 프롬프트*
+* *메모리 시스템*
+* LLM의 실수를 제어하기 위한 *오류 로깅과 재시도 메커니즘*
+
+우리는 `smolagents`, `LlamaIndex`, `LangGraph`를 포함한 다양한 프레임워크에서 이러한 주제들이 어떻게 해결되는지 살펴볼 것입니다.
+
+## 에이전트 프레임워크 유닛들
+
+| 프레임워크 | 설명 | 유닛 작성자 |
+|------------|----------------|----------------|
+| [smolagents](./smolagents/introduction) | Hugging Face에서 개발한 에이전트 프레임워크 | Sergio Paniego - [HF](https://huggingface.co/sergiopaniego) - [X](https://x.com/sergiopaniego) - [Linkedin](https://www.linkedin.com/in/sergio-paniego-blanco) | 

@@ -1,0 +1,398 @@
+# 멀티 에이전트 시스템
+
+멀티 에이전트 시스템은 **전문화된 에이전트들이 복잡한 작업을 위해 협력**할 수 있게 하여 모듈성, 확장성 및 견고성을 향상시킵니다. 단일 에이전트에 의존하는 대신, 작업들은 서로 다른 능력을 가진 에이전트들에게 분산됩니다.
+
+**smolagents**에서는 Python 코드를 생성하고, 외부 도구를 호출하며, 웹 검색을 수행하는 등의 작업을 위해 서로 다른 에이전트들을 결합할 수 있습니다. 이러한 에이전트들을 조율함으로써 강력한 워크플로우를 만들 수 있습니다.
+
+일반적인 구성에는 다음과 같은 것들이 포함될 수 있습니다:
+- 작업 위임을 위한 **관리자 에이전트**
+- 코드 실행을 위한 **코드 인터프리터 에이전트**
+- 정보 검색을 위한 **웹 검색 에이전트**
+
+아래 다이어그램은 **관리자 에이전트**가 **코드 인터프리터 도구**와 **웹 검색 에이전트**를 조정하는 간단한 멀티 에이전트 아키텍처를 보여줍니다. 웹 검색 에이전트는 `DuckDuckGoSearchTool`과 `VisitWebpageTool`과 같은 도구들을 활용하여 관련 정보를 수집합니다.
+
+<img src="https://mermaid.ink/img/pako:eNp1kc1qhTAQRl9FUiQb8wIpdNO76eKubrmFks1oRg3VSYgjpYjv3lFL_2hnMWQOJwn5sqgmelRWleUSKLAtFs09jqhtoWuYUFfFAa6QA9QDTnpzamheuhxn8pt40-6l13UtS0ddhtQXj6dbR4XUGQg6zEYasTF393KjeSDGnDJKNxzj8I_7hLW5IOSmP9CH9hv_NL-d94d4DVNg84p1EnK4qlIj5hGClySWbadT-6OdsrL02MI8sFOOVkciw8zx8kaNspxnrJQE0fXKtjBMMs3JA-MpgOQwftIE9Bzj14w-cMznI_39E9Z3p0uFoA?type=png" style='background: white;'>
+
+## 실전에서의 멀티 에이전트 시스템
+
+멀티 에이전트 시스템은 **오케스트레이터 에이전트**의 조정 하에 여러 전문화된 에이전트들이 함께 작동하는 시스템입니다. 이러한 접근 방식은 서로 다른 역할을 가진 에이전트들 간에 작업을 분산함으로써 복잡한 워크플로우를 가능하게 합니다.
+
+예를 들어, **멀티 에이전트 RAG 시스템**은 다음과 같은 것들을 통합할 수 있습니다:
+- 인터넷 브라우징을 위한 **웹 에이전트**
+- 지식 베이스에서 정보를 가져오는 **검색 에이전트**
+- 시각적 자료를 생성하는 **이미지 생성 에이전트**
+
+이러한 모든 에이전트들은 작업 위임과 상호작용을 관리하는 오케스트레이터 아래에서 작동합니다.
+
+## 멀티 에이전트 계층 구조로 복잡한 작업 해결하기
+
+<Tip>
+Google Colab을 사용하여 실행할 수 있는 <a href="https://huggingface.co/agents-course/notebooks/blob/main/unit2/smolagents/multiagent_notebook.ipynb" target="_blank">이 노트북</a>에서 코드를 따라할 수 있습니다.
+</Tip>
+
+리셉션이 다가오고 있습니다! 여러분의 도움으로 알프레드는 이제 거의 준비를 마쳤습니다.
+
+하지만 이제 문제가 생겼습니다: 배트모빌이 사라졌습니다. 알프레드는 대체품을 찾아야 하고, 빨리 찾아야 합니다.
+
+다행히도 브루스 웨인의 삶에 대한 여러 전기 영화들이 제작되었기 때문에, 알프레드는 영화 세트장에 남겨진 차량을 구해서 현대적인 기준에 맞게 재설계할 수 있을 것입니다. 여기에는 당연히 완전 자율주행 옵션도 포함될 것입니다.
+
+하지만 이 차량은 전 세계의 촬영 장소 어디에나 있을 수 있습니다 - 그리고 그 장소는 매우 많을 수 있죠.
+
+그래서 알프레드는 여러분의 도움이 필요합니다. 이 작업을 해결할 수 있는 에이전트를 만들어 주시겠습니까?
+
+> 👉 전 세계의 배트맨 촬영 장소를 모두 찾고, 그곳까지의 선박 이동 시간을 계산하여 지도에 표시해주세요. 이동 시간에 따라 색상을 다르게 표시하면 좋겠습니다. 또한 같은 선박 이동 시간으로 슈퍼카 공장들도 함께 표시해주세요.
+
+이것을 만들어봅시다!
+
+이 예제에는 몇 가지 추가 패키지가 필요하므로, 먼저 이것들을 설치하겠습니다:
+
+```bash
+pip install 'smolagents[litellm]' matplotlib geopandas shapely kaleido -q
+```
+
+### 먼저 화물 비행기 이동 시간을 계산하는 도구를 만듭니다.
+
+```python
+import math
+from typing import Optional, Tuple
+
+from smolagents import tool
+
+
+@tool
+def calculate_cargo_travel_time(
+    origin_coords: Tuple[float, float],
+    destination_coords: Tuple[float, float],
+    cruising_speed_kmh: Optional[float] = 750.0,  # 화물 비행기의 평균 속도
+) -> float:
+    """
+    대권 거리를 사용하여 두 지점 간의 화물 비행기 이동 시간을 계산합니다.
+
+    Args:
+        origin_coords: 출발지의 (위도, 경도) 튜플
+        destination_coords: 목적지의 (위도, 경도) 튜플
+        cruising_speed_kmh: 선택적 순항 속도(km/h) (기본값은 일반적인 화물 비행기 속도인 750 km/h)
+
+    Returns:
+        float: 예상 이동 시간(시간)
+
+    Example:
+        >>> # 시카고(41.8781° N, 87.6298° W)에서 시드니(33.8688° S, 151.2093° E)까지
+        >>> result = calculate_cargo_travel_time((41.8781, -87.6298), (-33.8688, 151.2093))
+    """
+
+    def to_radians(degrees: float) -> float:
+        return degrees * (math.pi / 180)
+
+    # 좌표 추출
+    lat1, lon1 = map(to_radians, origin_coords)
+    lat2, lon2 = map(to_radians, destination_coords)
+
+    # 지구의 반지름(킬로미터)
+    EARTH_RADIUS_KM = 6371.0
+
+    # 하버사인 공식을 사용하여 대권 거리 계산
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(math.sqrt(a))
+    distance = EARTH_RADIUS_KM * c
+
+    # 비직항 노선과 항공 교통 관제를 고려하여 10% 추가
+    actual_distance = distance * 1.1
+
+    # 비행 시간 계산
+    # 이륙과 착륙 절차를 위해 1시간 추가
+    flight_time = (actual_distance / cruising_speed_kmh) + 1.0
+
+    # 결과 형식화
+    return round(flight_time, 2)
+
+
+print(calculate_cargo_travel_time((41.8781, -87.6298), (-33.8688, 151.2093)))
+```
+
+### 에이전트 설정하기
+
+모델 제공자로는 Hub의 새로운 [추론 제공자](https://huggingface.co/blog/inference-providers) 중 하나인 Together AI를 사용합니다!
+
+GoogleSearchTool은 웹 검색을 위해 [Serper API](https://serper.dev)를 사용하므로, 환경 변수 `SERPAPI_API_KEY`를 설정하고 `provider="serpapi"`를 전달하거나 `SERPER_API_KEY`를 설정하고 `provider=serper`를 전달해야 합니다.
+
+Serp API 제공자가 설정되어 있지 않다면 `DuckDuckGoSearchTool`을 사용할 수 있지만, 속도 제한이 있다는 점을 주의하세요.
+
+```python
+import os
+from PIL import Image
+from smolagents import CodeAgent, GoogleSearchTool, HfApiModel, VisitWebpageTool
+
+model = HfApiModel(model_id="Qwen/Qwen2.5-Coder-32B-Instruct", provider="together")
+```
+
+기준점으로 삼을 간단한 보고서를 만들기 위해 기본 에이전트를 만들어 보겠습니다.
+
+```python
+task = """전 세계의 배트맨 촬영 장소를 찾고, 여기(고담, 40.7128° N, 74.0060° W)까지의 화물 비행기 이동 시간을 계산하여 pandas 데이터프레임으로 반환해주세요.
+또한 같은 화물 비행기 이동 시간으로 슈퍼카 공장들도 알려주세요."""
+```
+
+```python
+agent = CodeAgent(
+    model=model,
+    tools=[GoogleSearchTool("serper"), VisitWebpageTool(), calculate_cargo_travel_time],
+    additional_authorized_imports=["pandas"],
+    max_steps=20,
+)
+```
+
+```python
+result = agent.run(task)
+```
+
+```python
+result
+```
+
+우리의 경우, 다음과 같은 출력이 생성됩니다:
+
+```python
+|  | 위치                                               | 고담까지의 이동 시간(시간) |
+|--|--------------------------------------------------|--------------------------|
+| 0  | 네크로폴리스 묘지, 글래스고, 스코틀랜드, 영국      | 8.60                     |
+| 1  | 세인트 조지 홀, 리버풀, 잉글랜드, 영국            | 8.81                     |
+| 2  | 투 템플 플레이스, 런던, 잉글랜드, 영국            | 9.17                     |
+| 3  | 월라톤 홀, 노팅엄, 잉글랜드, 영국                | 9.00                     |
+| 4  | 네브워스 하우스, 네브워스, 허트퍼드셔, 영국        | 9.15                     |
+| 5  | 액턴 레인 발전소, 액턴 레인, 액턴, 영국           | 9.16                     |
+| 6  | 퀸즈보로 브릿지, 뉴욕시, 미국                    | 1.01                     |
+| 7  | 월 스트리트, 뉴욕시, 미국                        | 1.00                     |
+| 8  | 메란가르 요새, 조드푸르, 라자스탄, 인도           | 18.34                    |
+| 9  | 투르다 협곡, 투르다, 루마니아                    | 11.89                    |
+| 10 | 시카고, 미국                                    | 2.68                     |
+| 11 | 홍콩, 중국                                      | 19.99                    |
+| 12 | 카딩턴 스튜디오, 노샘프턴셔, 영국                | 9.10                     |
+| 13 | 워너 브라더스 리브스덴 스튜디오, 허트퍼드셔, 영국  | 9.13                     |
+| 14 | 웨스트우드, 로스앤젤레스, CA, 미국               | 6.79                     |
+| 15 | 워킹, 영국 (맥라렌)                             | 9.13                     |
+```
+
+계획 단계를 추가하고 더 자세한 프롬프트를 사용하여 이를 개선할 수 있습니다.
+
+계획 단계를 통해 에이전트는 앞으로의 단계를 생각하고 계획할 수 있으며, 이는 더 복잡한 작업에 유용할 수 있습니다.
+
+```python
+agent.planning_interval = 4
+
+detailed_report = agent.run(f"""
+당신은 전문 분석가입니다. 많은 웹사이트를 방문한 후 종합적인 보고서를 작성합니다.
+for 루프에서 한 번에 여러 쿼리를 검색하는 것을 주저하지 마세요.
+찾은 각 데이터 포인트에 대해 소스 URL을 방문하여 숫자를 확인하세요.
+
+{task}
+""")
+
+print(detailed_report)
+```
+
+```python
+detailed_report
+```
+
+우리의 경우, 다음과 같은 출력이 생성됩니다:
+
+```python
+|  | 위치                                           | 이동 시간(시간) |
+|--|------------------------------------------------|----------------|
+| 0  | 브릿지 오브 사이, 글래스고 네크로폴리스, 글래스고, 영국 | 8.6          |
+| 1  | 위샤트 스트리트, 글래스고, 스코틀랜드, 영국        | 8.6          |
+```
+
+이러한 간단한 변경만으로도, 에이전트에 상세한 프롬프트를 제공하고 계획 기능을 부여함으로써 훨씬 더 간결한 보고서를 얻을 수 있었습니다!
+
+모델의 컨텍스트 윈도우가 빠르게 채워지고 있습니다. 따라서 **상세 검색 결과를 다른 것과 결합하도록 에이전트에 요청하면, 속도가 느려지고 토큰과 비용이 빠르게 증가할 것입니다**.
+
+➡️ 우리는 시스템의 구조를 개선할 필요가 있습니다.
+
+### ✌️ 두 에이전트 간에 작업 분할하기
+
+멀티 에이전트 구조를 통해 서로 다른 하위 작업 간의 메모리를 분리할 수 있으며, 이는 두 가지 큰 이점이 있습니다:
+- 각 에이전트가 자신의 핵심 작업에 더 집중하므로 성능이 향상됩니다
+- 메모리를 분리함으로써 각 단계에서의 입력 토큰 수가 줄어들어 지연 시간과 비용이 감소합니다.
+
+전용 웹 검색 에이전트를 가진 팀을 만들어보겠습니다. 이 에이전트는 다른 에이전트가 관리합니다.
+
+관리자 에이전트는 최종 보고서를 작성하기 위해 플로팅 기능이 필요하므로, `matplotlib`과 공간 플로팅을 위한 `geopandas` + `shapely`를 포함한 추가 임포트에 대한 접근 권한을 부여해야 합니다.
+
+```python
+model = HfApiModel(
+    "Qwen/Qwen2.5-Coder-32B-Instruct", provider="together", max_tokens=8096
+)
+
+web_agent = CodeAgent(
+    model=model,
+    tools=[
+        GoogleSearchTool(provider="serper"),
+        VisitWebpageTool(),
+        calculate_cargo_travel_time,
+    ],
+    name="web_agent",
+    description="웹을 검색하여 정보를 찾습니다",
+    verbosity_level=0,
+) 
+```
+
+관리자 에이전트는 많은 정신적 작업을 수행해야 합니다.
+
+따라서 우리는 더 강력한 모델인 [DeepSeek-R1](https://huggingface.co/deepseek-ai/DeepSeek-R1)을 사용하고, `planning_interval`을 추가합니다.
+
+```python
+from smolagents.utils import encode_image_base64, make_image_url
+from smolagents import OpenAIServerModel
+
+
+def check_reasoning_and_plot(final_answer, agent_memory):
+    final_answer
+    multimodal_model = OpenAIServerModel("gpt-4o", max_tokens=8096)
+    filepath = "saved_map.png"
+    assert os.path.exists(filepath), "플롯을 saved_map.png로 저장했는지 확인하세요!"
+    image = Image.open(filepath)
+    prompt = (
+        f"여기 사용자가 제시한 작업과 에이전트 단계가 있습니다: {agent_memory.get_succinct_steps()}. 이제 만들어진 플롯을 보겠습니다."
+        "추론 과정과 플롯이 올바른지 확인해주세요: 주어진 작업에 올바르게 답했나요?"
+        "먼저 예/아니오에 대한 이유를 나열한 다음, 최종 결정을 작성하세요: 만족스럽다면 대문자로 PASS를, 그렇지 않다면 FAIL을 작성하세요."
+        "너무 엄격하지 마세요: 플롯이 대체로 작업을 해결한다면 통과해야 합니다."
+        "통과하려면 플롯이 다른 방법이 아닌 px.scatter_map을 사용하여 만들어져야 합니다(scatter_map이 더 보기 좋습니다)."
+    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt,
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": make_image_url(encode_image_base64(image))},
+                },
+            ],
+        }
+    ]
+    output = multimodal_model(messages).content
+    print("피드백: ", output)
+    if "FAIL" in output:
+        raise Exception(output)
+    return True
+
+
+manager_agent = CodeAgent(
+    model=HfApiModel("deepseek-ai/DeepSeek-R1", provider="together", max_tokens=8096),
+    tools=[calculate_cargo_travel_time],
+    managed_agents=[web_agent],
+    additional_authorized_imports=[
+        "geopandas",
+        "plotly",
+        "shapely",
+        "json",
+        "pandas",
+        "numpy",
+    ],
+    planning_interval=5,
+    verbosity_level=2,
+    final_answer_checks=[check_reasoning_and_plot],
+    max_steps=15,
+)
+```
+
+이 팀이 어떻게 구성되어 있는지 살펴보겠습니다:
+
+```python
+manager_agent.visualize()
+```
+
+이는 다음과 같은 것을 생성하여 에이전트와 도구 간의 구조와 관계를 이해하는 데 도움을 줍니다:
+
+```python
+CodeAgent | deepseek-ai/DeepSeek-R1
+├── ✅ 허용된 임포트: ['geopandas', 'plotly', 'shapely', 'json', 'pandas', 'numpy']
+├── 🛠️ 도구:
+│   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│   ┃ 이름                        ┃ 설명                                   ┃ 인수                                   ┃
+│   ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│   │ calculate_cargo_travel_time │ 대권 거리를 사용하여 두 지점 간의       │ origin_coords (`array`): 출발지의      │
+│   │                             │ 화물 비행기 이동 시간을 계산합니다.     │ (위도, 경도) 튜플                      │
+│   │                             │                                       │ destination_coords (`array`): 목적지의 │
+│   │                             │                                       │ (위도, 경도) 튜플                      │
+│   │                             │                                       │ cruising_speed_kmh (`number`):        │
+│   │                             │                                       │ 선택적 순항 속도(km/h)                 │
+│   │                             │                                       │ (기본값은 일반적인 화물 비행기 속도인    │
+│   │                             │                                       │ 750 km/h)                            │
+│   │ final_answer                │ 주어진 문제에 대한 최종 답변을          │ answer (`any`): 문제에 대한 최종 답변   │
+│   │                             │ 제공합니다.                           │                                       │
+│   └─────────────────────────────┴───────────────────────────────────────┴───────────────────────────────────────┘
+└── 🤖 관리되는 에이전트:
+    └── web_agent | CodeAgent | Qwen/Qwen2.5-Coder-32B-Instruct
+        ├── ✅ 허용된 임포트: []
+        ├── 📝 설명: 웹을 검색하여 정보를 찾습니다
+        └── 🛠️ 도구:
+            ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+            ┃ 이름                        ┃ 설명                               ┃ 인수                               ┃
+            ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+            │ web_search                  │ 쿼리에 대한 구글 웹 검색을 수행한    │ query (`string`): 수행할 검색 쿼리  │
+            │                             │ 다음 상위 검색 결과의 문자열을       │ filter_year (`integer`): 선택적으로 │
+            │                             │ 반환합니다.                         │ 특정 연도로 결과 제한               │
+            │ visit_webpage               │ 주어진 URL의 웹페이지를 방문하고     │ url (`string`): 방문할 웹페이지의   │
+            │                             │ 내용을 마크다운 문자열로 읽습니다.   │ URL.                              │
+            │                             │ 웹페이지를 탐색할 때 사용하세요.     │                                   │
+            │ calculate_cargo_travel_time │ 대권 거리를 사용하여 두 지점 간의    │ origin_coords (`array`): 출발지의  │
+            │                             │ 화물 비행기 이동 시간을 계산합니다.   │ (위도, 경도) 튜플                  │
+            │                             │                                    │ destination_coords (`array`):     │
+            │                             │                                    │ 목적지의 (위도, 경도) 튜플          │
+            │                             │                                    │ cruising_speed_kmh (`number`):    │
+            │                             │                                    │ 선택적 순항 속도(km/h)             │
+            │                             │                                    │ (기본값은 일반적인 화물 비행기 속도인 │
+            │                             │                                    │ 750 km/h)                        │
+            │ final_answer                │ 주어진 문제에 대한 최종 답변을       │ answer (`any`): 문제에 대한 최종   │
+            │                             │ 제공합니다.                         │ 답변                              │
+            └─────────────────────────────┴────────────────────────────────────┴───────────────────────────────────┘
+```
+
+```python
+manager_agent.run("""
+전 세계의 배트맨 촬영 장소를 찾고, 여기(고담, 40.7128° N, 74.0060° W)까지의 화물 비행기 이동 시간을 계산하세요.
+또한 같은 화물 비행기 이동 시간으로 슈퍼카 공장들도 알려주세요. 총 6개 이상의 지점이 필요합니다.
+이를 세계 지도에 공간적으로 표현하되, 이동 시간에 따라 색상이 달라지는 산점도 점으로 위치를 표시하고 saved_map.png로 저장하세요!
+
+다음은 지도를 플로팅하고 반환하는 예시입니다:
+import plotly.express as px
+df = px.data.carshare()
+fig = px.scatter_map(df, lat="centroid_lat", lon="centroid_lon", text="name", color="peak_hour", size=100,
+     color_continuous_scale=px.colors.sequential.Magma, size_max=15, zoom=1)
+fig.show()
+fig.write_image("saved_image.png")
+final_answer(fig)
+
+코드로 문자열을 처리하려고 하지 마세요: 읽을 문자열이 있을 때는 그냥 출력하면 보입니다.
+""")
+```
+
+여러분의 실행에서는 어떻게 되었는지 모르겠지만, 제 실행에서는 관리자 에이전트가 웹 에이전트에게 주어진 작업을 `1. 배트맨 촬영 장소 검색`, 그리고 `2. 슈퍼카 공장 찾기`로 능숙하게 나누어 처리한 다음, 목록들을 취합하여 지도를 플로팅했습니다.
+
+에이전트 상태에서 직접 지도가 어떻게 생겼는지 살펴보겠습니다:
+
+```python
+manager_agent.python_executor.state["fig"]
+```
+
+이는 다음과 같은 지도를 출력할 것입니다:
+
+![멀티 에이전트 시스템 예시 출력 지도](https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit2/smolagents/output_map.png)
+
+## 자료
+
+- [멀티 에이전트 시스템](https://huggingface.co/docs/smolagents/main/en/examples/multiagents) – 멀티 에이전트 시스템 개요
+- [Agentic RAG란 무엇인가?](https://weaviate.io/blog/what-is-agentic-rag) – Agentic RAG 소개
+- [멀티 에이전트 RAG 시스템 🤖🤝🤖 레시피](https://huggingface.co/learn/cookbook/multiagent_rag_system) – 멀티 에이전트 RAG 시스템 구축을 위한 단계별 가이드

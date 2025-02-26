@@ -1,0 +1,67 @@
+# 코드 스니펫 또는 JSON 블롭으로 액션 작성하기
+
+<Tip>
+<a href="https://huggingface.co/agents-course/notebooks/blob/main/unit2/smolagents/tool_calling_agents.ipynb" target="_blank">이 노트북</a>에서 Google Colab을 사용하여 코드를 실행해볼 수 있습니다.
+</Tip>
+
+도구 호출 에이전트는 `smolagents`에서 사용할 수 있는 두 번째 유형의 에이전트입니다. Python 스니펫을 사용하는 코드 에이전트와 달리, 이러한 에이전트들은 **LLM 제공자들의 내장된 도구 호출 기능**을 사용하여 도구 호출을 **JSON 구조**로 생성합니다. 이는 OpenAI, Anthropic 및 다른 많은 제공자들이 사용하는 표준 접근 방식입니다.
+
+예를 들어 보겠습니다. Alfred가 케이터링 서비스와 파티 아이디어를 검색하고자 할 때, `CodeAgent`는 다음과 같은 Python 코드를 생성하고 실행합니다:
+
+```python
+for query in [
+    "Best catering services in Gotham City", 
+    "Party theme ideas for superheroes"
+]:
+    print(web_search(f"Search for: {query}"))
+```
+
+반면에 `ToolCallingAgent`는 다음과 같은 JSON 구조를 생성합니다:
+
+```python
+[
+    {"name": "web_search", "arguments": "Best catering services in Gotham City"},
+    {"name": "web_search", "arguments": "Party theme ideas for superheroes"}
+]
+```
+
+이 JSON 블롭은 도구 호출을 실행하는 데 사용됩니다.
+
+`smolagents`는 [전반적으로 더 나은 성능을 보이는](https://arxiv.org/abs/2402.01030) `CodeAgents`에 주로 초점을 맞추고 있지만, `ToolCallingAgents`는 변수 처리나 복잡한 도구 호출이 필요하지 않은 간단한 시스템에 효과적일 수 있습니다.
+
+![코드 vs JSON 액션](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/code_vs_json_actions.png)  
+
+## 도구 호출 에이전트는 어떻게 작동하나요?  
+
+도구 호출 에이전트는 코드 에이전트와 동일한 다단계 워크플로우를 따릅니다 (자세한 내용은 [이전 섹션](./code_agents)을 참조하세요). 
+
+주요 차이점은 **액션을 구조화하는 방식**에 있습니다: 실행 가능한 코드 대신, **도구 이름과 인수를 지정하는 JSON 객체를 생성**합니다. 그런 다음 시스템이 **이러한 지침을 파싱**하여 적절한 도구를 실행합니다.
+
+## 예제: 도구 호출 에이전트 실행하기  
+
+이전 예제에서 Alfred가 파티 준비를 시작했던 것을 다시 살펴보겠습니다. 이번에는 차이점을 강조하기 위해 `ToolCallingAgent`를 사용하겠습니다. 코드 에이전트 예제와 마찬가지로 DuckDuckGo를 사용하여 웹을 검색할 수 있는 에이전트를 만들어보겠습니다. 유일한 차이점은 에이전트 유형이며, 프레임워크가 나머지 모든 것을 처리합니다:
+
+```python
+from smolagents import ToolCallingAgent, DuckDuckGoSearchTool, HfApiModel
+
+agent = ToolCallingAgent(tools=[DuckDuckGoSearchTool()], model=HfApiModel())
+
+agent.run("Search for the best music recommendations for a party at the Wayne's mansion.")
+```
+
+에이전트의 추적을 살펴보면, `Executing parsed code:` 대신 다음과 같은 내용이 표시됩니다:
+
+```text
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Calling tool: 'web_search' with arguments: {'query': "best music recommendations for a party at Wayne's         │
+│ mansion"}                                                                                                       │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```  
+
+에이전트는 `CodeAgent`처럼 코드를 직접 실행하는 대신, 시스템이 출력을 생성하기 위해 처리하는 구조화된 도구 호출을 생성합니다.
+
+이제 두 가지 에이전트 유형을 모두 이해했으므로, 우리의 필요에 맞는 것을 선택할 수 있습니다. Alfred의 파티를 성공적으로 만들기 위해 `smolagents`를 계속 탐험해보겠습니다! 🎉
+
+## 참고 자료
+
+- [ToolCallingAgent 문서](https://huggingface.co/docs/smolagents/v1.8.1/en/reference/agents#smolagents.ToolCallingAgent) - ToolCallingAgent의 공식 문서 

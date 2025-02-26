@@ -1,0 +1,216 @@
+# smolagents를 사용한 비전 에이전트
+
+<Tip warning={true}>
+이 섹션의 예제들은 강력한 VLM 모델에 대한 접근이 필요합니다. 우리는 GPT-4o API를 사용하여 테스트했습니다.  
+하지만, <a href="./why_use_smolagents">smolagents를 사용하는 이유</a>에서 smolagents와 Hugging Face가 지원하는 대체 솔루션에 대해 논의합니다. 다른 옵션을 탐색하고 싶다면, 해당 섹션을 확인해보세요.
+</Tip>
+
+에이전트에게 시각적 능력을 부여하는 것은 텍스트 처리를 넘어서는 작업을 해결하는 데 매우 중요합니다. 웹 브라우징이나 문서 이해와 같은 많은 실제 과제들은 풍부한 시각적 콘텐츠를 분석해야 합니다. 다행히도 `smolagents`는 비전-언어 모델(VLM)에 대한 내장 지원을 제공하여, 에이전트가 이미지를 효과적으로 처리하고 해석할 수 있게 합니다.  
+
+이 예제에서, Wayne Manor의 집사인 Alfred는 파티에 참석하는 손님들의 신원을 확인하는 임무를 맡았다고 상상해보세요. 여러분도 짐작할 수 있듯이, Alfred는 도착하는 모든 사람을 알지 못할 수 있습니다. 그를 돕기 위해, 우리는 VLM을 사용하여 그들의 외모에 대한 시각적 정보를 검색함으로써 신원을 확인하는 에이전트를 사용할 수 있습니다. 이를 통해 Alfred는 누가 입장할 수 있는지에 대해 정보에 기반한 결정을 내릴 수 있습니다. 이 예제를 만들어봅시다!
+
+
+## 에이전트 실행 시작 시 이미지 제공하기
+
+<Tip>
+<a href="https://huggingface.co/agents-course/notebooks/blob/main/unit2/smolagents/vision_agents.ipynb" target="_blank">이 노트북</a>에서 Google Colab을 사용하여 코드를 실행해볼 수 있습니다.
+</Tip>
+
+이 접근 방식에서는 이미지가 시작 시 에이전트에 전달되어 작업 프롬프트와 함께 `task_images`로 저장됩니다. 그런 다음 에이전트는 실행 전반에 걸쳐 이러한 이미지들을 처리합니다.  
+
+Alfred가 파티에 참석하는 슈퍼히어로들의 신원을 확인하고 싶어하는 경우를 생각해보세요. 그는 이미 이전 파티에서 손님들의 이름이 포함된 이미지 데이터셋을 가지고 있습니다. 새로운 방문자의 이미지가 주어지면, 에이전트는 이를 기존 데이터셋과 비교하여 입장을 허가할지 결정할 수 있습니다.  
+
+이 경우, 한 손님이 입장하려 하고 있고, Alfred는 이 방문자가 원더우먼으로 위장한 조커일 수 있다고 의심합니다. Alfred는 원치 않는 사람이 들어오는 것을 막기 위해 그들의 신원을 확인해야 합니다.  
+
+예제를 만들어봅시다. 먼저, 이미지들을 로드합니다. 이 경우에는 예제를 최소화하기 위해 위키피디아의 이미지를 사용하지만, 가능한 사용 사례를 상상해보세요! 
+
+```python
+from PIL import Image
+import requests
+from io import BytesIO
+
+image_urls = [
+    "https://upload.wikimedia.org/wikipedia/commons/e/e8/The_Joker_at_Wax_Museum_Plus.jpg", # 조커 이미지
+    "https://upload.wikimedia.org/wikipedia/en/9/98/Joker_%28DC_Comics_character%29.jpg" # 조커 이미지
+]
+
+images = []
+for url in image_urls:
+    response = requests.get(url)
+    image = Image.open(BytesIO(response.content)).convert("RGB")
+    images.append(image)
+```
+
+이제 이미지들을 가지고 있으니, 에이전트는 한 손님이 실제로 슈퍼히어로(원더우먼)인지 악당(조커)인지 알려줄 것입니다.
+
+```python
+from smolagents import CodeAgent, OpenAIServerModel
+
+model = OpenAIServerModel(model_id="gpt-4o")
+
+# 에이전트 인스턴스화
+agent = CodeAgent(
+    tools=[],
+    model=model,
+    max_steps=20,
+    verbosity_level=2
+)
+
+response = agent.run(
+    """
+    이 사진들에서 만화 캐릭터가 착용하고 있는 의상과 메이크업을 설명하고 그 설명을 반환하세요.
+    이 손님이 조커인지 원더우먼인지 알려주세요.
+    """,
+    images=images
+)
+```
+
+제가 실행한 경우, 출력은 다음과 같습니다. 하지만 우리가 이미 논의했듯이 여러분의 경우에는 다를 수 있습니다:
+
+```python
+    {
+        '의상과 메이크업 - 첫 번째 이미지': (
+            '보라색 코트와 겨자색 셔츠 위에 보라색 실크 같은 크라바트나 넥타이.',
+            '과장된 특징이 있는 하얀 페이스 페인트, 짙은 눈썹, 파란 아이 메이크업, 넓은 미소를 형성하는 빨간 입술.'
+        ),
+        '의상과 메이크업 - 두 번째 이미지': (
+            '라펠에 꽃이 달린 어두운 정장, 트럼프 카드를 들고 있음.',
+            '창백한 피부, 초록색 머리, 과장된 미소를 짓고 있는 매우 빨간 입술.'
+        ),
+        '캐릭터 신원': '이 캐릭터는 만화책 미디어에서 알려진 조커의 모습과 일치합니다.'
+    }
+```
+
+이 경우, 출력은 그 사람이 다른 사람으로 위장하고 있다는 것을 보여주므로, 우리는 조커가 파티에 입장하는 것을 막을 수 있습니다!
+
+## 동적 검색을 통한 이미지 제공
+
+<Tip>
+<a href="https://huggingface.co/agents-course/notebooks/blob/main/unit2/smolagents/vision_web_browser.py" target="_blank">이 Python 파일</a>에서 코드를 따라할 수 있습니다.
+</Tip>
+
+이전 접근 방식은 가치 있고 많은 잠재적 사용 사례가 있습니다. 하지만 손님이 데이터베이스에 없는 상황에서는 그들을 식별하는 다른 방법을 탐색해야 합니다. 한 가지 가능한 해결책은 웹을 탐색하여 세부 정보를 찾는 것과 같이 외부 소스에서 이미지와 정보를 동적으로 검색하는 것입니다.
+
+이 접근 방식에서는 이미지가 실행 중에 에이전트의 메모리에 동적으로 추가됩니다. 우리가 알다시피, `smolagents`의 에이전트들은 ReAct 프레임워크의 추상화인 `MultiStepAgent` 클래스를 기반으로 합니다. 이 클래스는 다양한 변수와 지식이 다른 단계에서 기록되는 구조화된 사이클로 작동합니다:
+
+1. **SystemPromptStep:** 시스템 프롬프트를 저장합니다.
+2. **TaskStep:** 사용자 쿼리와 제공된 입력을 기록합니다.
+3. **ActionStep:** 에이전트의 액션과 결과를 캡처합니다.
+
+이 구조화된 접근 방식을 통해 에이전트는 시각적 정보를 동적으로 통합하고 진화하는 작업에 적응적으로 응답할 수 있습니다. 아래는 우리가 이미 본 다이어그램으로, 동적 워크플로우 프로세스와 다른 단계들이 에이전트 수명 주기 내에서 어떻게 통합되는지를 보여줍니다. 브라우징할 때, 에이전트는 스크린샷을 찍어 `ActionStep`에서 `observation_images`로 저장할 수 있습니다.
+
+![동적 이미지 검색](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/blog/smolagents-can-see/diagram_adding_vlms_smolagents.png)
+
+이제 필요성을 이해했으니, 우리의 완전한 예제를 만들어봅시다. 이 경우, Alfred는 손님 확인 프로세스를 완전히 통제하고 싶어하므로, 세부 정보를 검색하는 것이 실행 가능한 해결책이 됩니다. 이 예제를 완성하기 위해서는 에이전트를 위한 새로운 도구 세트가 필요합니다. 또한, 브라우저 자동화 도구인 Selenium과 Helium을 사용할 것입니다. 이를 통해 웹을 탐색하고, 잠재적 손님에 대한 세부 정보를 검색하고, 확인 정보를 검색하는 에이전트를 구축할 수 있습니다. 필요한 도구들을 설치해봅시다:
+
+```bash
+pip install "smolagents[all]" helium selenium python-dotenv
+```
+
+우리는 `search_item_ctrl_f`, `go_back`, `close_popups`와 같이 브라우징을 위해 특별히 설계된 에이전트 도구 세트가 필요합니다. 이러한 도구들을 통해 에이전트는 웹을 탐색하는 사람처럼 행동할 수 있습니다.
+
+```python
+@tool
+def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
+    """
+    Ctrl + F를 통해 현재 페이지에서 텍스트를 검색하고 n번째 발생으로 이동합니다.
+    Args:
+        text: 검색할 텍스트
+        nth_result: 몇 번째 발생으로 이동할지 (기본값: 1)
+    """
+    elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
+    if nth_result > len(elements):
+        raise Exception(f"매치 n°{nth_result}를 찾을 수 없습니다 (단 {len(elements)}개의 매치만 발견됨)")
+    result = f"'{text}'에 대해 {len(elements)}개의 매치를 찾았습니다."
+    elem = elements[nth_result - 1]
+    driver.execute_script("arguments[0].scrollIntoView(true);", elem)
+    result += f"{len(elements)}개 중 {nth_result}번째 요소에 포커스를 맞췄습니다"
+    return result
+
+
+@tool
+def go_back() -> None:
+    """이전 페이지로 돌아갑니다."""
+    driver.back()
+
+
+@tool
+def close_popups() -> str:
+    """
+    페이지에 보이는 모달이나 팝업을 닫습니다. 팝업 창을 닫을 때 사용하세요! 이는 쿠키 동의 배너에는 작동하지 않습니다.
+    """
+    webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+```
+
+또한 스크린샷을 저장하는 기능이 필요합니다. 이는 우리의 VLM 에이전트가 작업을 완료하는 데 사용하는 필수적인 부분이 될 것입니다. 이 기능은 스크린샷을 캡처하고 `step_log.observations_images = [image.copy()]`에 저장하여, 에이전트가 탐색하면서 이미지를 동적으로 저장하고 처리할 수 있게 합니다.
+
+```python
+def save_screenshot(step_log: ActionStep, agent: CodeAgent) -> None:
+    sleep(1.0)  # 스크린샷을 찍기 전에 JavaScript 애니메이션이 완료되도록 합니다
+    driver = helium.get_driver()
+    current_step = step_log.step_number
+    if driver is not None:
+        for step_logs in agent.logs:  # 간단한 처리를 위해 로그에서 이전 스크린샷을 제거합니다
+            if isinstance(step_log, ActionStep) and step_log.step_number <= current_step - 2:
+                step_logs.observations_images = None
+        png_bytes = driver.get_screenshot_as_png()
+        image = Image.open(BytesIO(png_bytes))
+        print(f"브라우저 스크린샷을 캡처했습니다: {image.size} 픽셀")
+        step_log.observations_images = [image.copy()]  # 지속되도록 복사본을 만듭니다, 중요합니다!
+
+    # 현재 URL로 관찰 내용을 업데이트합니다
+    url_info = f"현재 url: {driver.current_url}"
+    step_log.observations = url_info if step_logs.observations is None else step_log.observations + "\n" + url_info
+    return
+```
+
+이 함수는 에이전트 실행 중 각 단계가 끝날 때 트리거되는 `step_callback`으로 에이전트에 전달됩니다. 이를 통해 에이전트는 프로세스 전반에 걸쳐 스크린샷을 동적으로 캡처하고 저장할 수 있습니다.
+
+이제, 우리가 만든 도구들과 함께 웹을 탐색하기 위한 `DuckDuckGoSearchTool`을 제공하여 웹 브라우징을 위한 비전 에이전트를 생성할 수 있습니다. 이 도구는 에이전트가 시각적 단서를 기반으로 손님들의 신원을 확인하는 데 필요한 정보를 검색하는 데 도움이 될 것입니다.
+
+```python
+from smolagents import CodeAgent, OpenAIServerModel, DuckDuckGoSearchTool
+model = OpenAIServerModel(model_id="gpt-4o")
+
+agent = CodeAgent(
+    tools=[DuckDuckGoSearchTool(), go_back, close_popups, search_item_ctrl_f],
+    model=model,
+    additional_authorized_imports=["helium"],
+    step_callbacks=[save_screenshot],
+    max_steps=20,
+    verbosity_level=2,
+)
+```
+
+이제, Alfred는 손님들의 신원을 확인하고 파티에 입장시킬지 여부에 대해 정보에 기반한 결정을 내릴 준비가 되었습니다:
+
+```python
+agent.run("""
+저는 Wayne Manor의 집사 Alfred이며, 파티에서 손님들의 신원을 확인하는 책임을 맡고 있습니다. 한 슈퍼히어로가 입구에 도착하여 자신이 원더우먼이라고 주장하고 있지만, 그녀가 정말 그녀라고 주장하는 사람인지 확인해야 합니다.
+
+원더우먼의 이미지를 검색하고 그 이미지들을 기반으로 상세한 시각적 설명을 생성해주세요. 또한, 위키피디아를 탐색하여 그녀의 외모에 대한 주요 세부 사항을 수집해주세요. 이 정보를 통해 제가 그녀의 이벤트 입장을 허가할지 결정할 수 있습니다.
+""" + helium_instructions)
+```
+
+보시다시피 우리는 작업의 일부로 `helium_instructions`를 포함합니다. 이 특별한 프롬프트는 웹을 탐색하는 동안 올바른 단계를 따르도록 에이전트의 탐색을 제어하는 것을 목표로 합니다.
+
+아래 비디오에서 이것이 어떻게 작동하는지 살펴보겠습니다:
+
+<video controls>
+  <source src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit2/smolagents/VisionBrowserAgent.mp4" type="video/mp4">
+</video>
+
+이것이 최종 출력입니다:
+
+```python
+최종 답변: 원더우먼은 일반적으로 빨간색과 금색의 뷔스티에, 흰색 별이 있는 파란색 반바지나 스커트, 금색 티아라, 은색 팔찌, 그리고 황금 진실의 올가미를 착용하고 있습니다. 그녀는 테미스키라의 다이애나 공주이며, 인간 세계에서는 다이애나 프린스로 알려져 있습니다.
+```
+
+이것으로, 우리는 파티를 위한 신원 확인자를 성공적으로 만들었습니다! Alfred는 이제 올바른 손님들만 입장할 수 있도록 하는 데 필요한 도구들을 가지고 있습니다. Wayne Manor에서 즐거운 시간을 보낼 준비가 모두 완료되었습니다!
+
+
+## 추가 읽을거리
+
+- [우리는 방금 smolagents에게 시각을 부여했습니다](https://huggingface.co/blog/smolagents-can-see) - 비전 에이전트 기능을 설명하는 블로그입니다.
+- [에이전트를 사용한 웹 브라우저 자동화 🤖🌐](https://huggingface.co/docs/smolagents/examples/web_browser) - 비전 에이전트를 사용한 웹 브라우징 예제입니다.
+- [웹 브라우저 비전 에이전트 예제](https://github.com/huggingface/smolagents/blob/main/src/smolagents/vision_web_browser.py) - 비전 에이전트를 사용한 웹 브라우징 예제입니다. 

@@ -1,0 +1,251 @@
+# 도구란 무엇인가?
+
+<img src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit1/whiteboard-check-2.jpg" alt="Unit 1 planning"/>
+
+AI 에이전트의 중요한 측면 중 하나는 **행동**을 취할 수 있는 능력입니다. 우리가 보았듯이, 이는 **도구**의 사용을 통해 이루어집니다.
+
+이 섹션에서는 도구가 무엇인지, 어떻게 효과적으로 설계하는지, 그리고 시스템 메시지를 통해 에이전트에 어떻게 통합하는지 배울 것입니다.
+
+에이전트에게 적절한 도구를 제공하고—그 도구들이 어떻게 작동하는지 명확하게 설명함으로써—AI가 달성할 수 있는 것을 극적으로 증가시킬 수 있습니다. 자세히 알아보겠습니다!
+
+## AI 도구란 무엇인가?
+
+**도구는 LLM에 제공되는 함수**입니다. 이 함수는 **명확한 목적**을 달성해야 합니다.
+
+다음은 AI 에이전트에서 일반적으로 사용되는 도구들입니다:
+
+| 도구            | 설명                                                   |
+|----------------|---------------------------------------------------------------|
+| 웹 검색     | 에이전트가 인터넷에서 최신 정보를 가져올 수 있게 합니다. |
+| 이미지 생성 | 텍스트 설명을 기반으로 이미지를 생성합니다.                  |
+| 검색      | 외부 소스에서 정보를 검색합니다.                |
+| API 인터페이스  | 외부 API와 상호작용합니다(GitHub, YouTube, Spotify 등). |
+
+이것들은 단지 예시일 뿐이며, 실제로는 어떤 사용 사례에 대해서도 도구를 만들 수 있습니다!
+
+좋은 도구는 **LLM의 능력을 보완하는** 것이어야 합니다.
+
+예를 들어, 산술 연산을 수행해야 하는 경우, LLM에 **계산기 도구**를 제공하면 모델의 기본 기능에 의존하는 것보다 더 나은 결과를 얻을 수 있습니다.
+
+또한, **LLM은 훈련 데이터를 기반으로 프롬프트의 완성을 예측**하는데, 이는 그들의 내부 지식이 훈련 이전의 사건들만 포함한다는 것을 의미합니다. 따라서, 에이전트가 최신 데이터가 필요한 경우 어떤 도구를 통해 제공해야 합니다.
+
+예를 들어, LLM에게 직접(검색 도구 없이) 오늘의 날씨를 물어보면, LLM은 잠재적으로 임의의 날씨를 환각할 수 있습니다.
+
+<img src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit1/weather.jpg" alt="Weather"/>
+
+- 도구는 다음을 포함해야 합니다:
+
+  - **함수가 하는 일에 대한 텍스트 설명**.
+  - *호출 가능한 것*(행동을 수행하는 것).
+  - 타입이 있는 *인수들*.
+  - (선택사항) 타입이 있는 출력들.
+
+## 도구는 어떻게 작동하나요?
+
+우리가 보았듯이, LLM은 텍스트 입력만 받고 텍스트 출력만 생성할 수 있습니다. 그들은 스스로 도구를 호출할 방법이 없습니다. _에이전트에게 도구를 제공한다_고 말할 때, 우리는 LLM에게 도구의 존재에 대해 **가르치고**, 필요할 때 도구를 호출하는 텍스트를 생성하도록 모델에게 요청하는 것을 의미합니다. 예를 들어, 인터넷에서 특정 위치의 날씨를 확인하는 도구를 제공하고 LLM에게 파리의 날씨에 대해 물어보면, LLM은 그 질문을 우리가 가르친 "날씨" 도구를 사용할 수 있는 관련 기회로 인식할 것입니다. LLM은 그 도구를 호출하기 위한 코드 형태의 _텍스트_를 생성할 것입니다. LLM을 대신하여 도구를 호출하는 것은 **에이전트**의 책임입니다. 도구의 출력은 다시 LLM에게 전송되어, LLM이 사용자를 위한 최종 응답을 작성합니다.
+
+도구 호출의 출력은 대화에서 또 다른 유형의 메시지입니다. 도구 호출 단계는 일반적으로 사용자에게 표시되지 않습니다: 에이전트는 대화를 검색하고, 도구를 호출하고, 출력을 얻고, 새로운 대화 메시지로 추가한 다음, 업데이트된 대화를 다시 LLM에게 보냅니다. 사용자의 관점에서는 LLM이 도구를 사용한 것처럼 보이지만, 실제로는 우리의 애플리케이션 코드(**에이전트**)가 그것을 수행한 것입니다.
+
+이 과정에 대해서는 향후 세션에서 더 자세히 다룰 것입니다.
+
+## LLM에게 도구를 어떻게 제공하나요?
+
+완전한 답변은 압도적으로 보일 수 있지만, 본질적으로 우리는 시스템 프롬프트를 사용하여 모델에 사용 가능한 도구에 대한 텍스트 설명을 제공합니다:
+
+<img src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit1/Agent_system_prompt.png" alt="System prompt for tools"/>
+
+이것이 작동하려면, 다음 사항에 대해 매우 정확하고 정밀해야 합니다:
+
+1. **도구가 하는 일**
+2. **정확히 어떤 입력을 기대하는지**
+
+이것이 도구 설명이 일반적으로 컴퓨터 언어나 JSON과 같은 표현력 있지만 정확한 구조를 사용하여 제공되는 이유입니다. 반드시 그렇게 할 _필요는_ 없으며, 정확하고 일관된 형식이면 어떤 것이든 작동할 것입니다.
+
+이것이 너무 이론적으로 보인다면, 구체적인 예를 통해 이해해보겠습니다.
+
+두 정수를 곱하는 단순화된 **계산기** 도구를 구현해보겠습니다. 다음이 우리의 Python 구현이 될 수 있습니다:
+
+```python
+def calculator(a: int, b: int) -> int:
+    """두 정수를 곱합니다."""
+    return a * b
+```
+
+따라서 우리의 도구는 `calculator`라고 불리며, **두 정수를 곱하고**, 다음과 같은 입력이 필요합니다:
+
+- **`a`** (*int*): 정수.
+- **`b`** (*int*): 정수.
+
+도구의 출력은 다음과 같이 설명할 수 있는 또 다른 정수입니다:
+- (*int*): `a`와 `b`의 곱.
+
+이러한 모든 세부사항이 중요합니다. LLM이 이해할 수 있도록 우리의 도구를 설명하는 텍스트 문자열에 이들을 모두 함께 넣어보겠습니다.
+
+```text
+도구 이름: calculator, 설명: 두 정수를 곱합니다., 인수: a: int, b: int, 출력: int
+```
+
+> **주의사항:** 이 텍스트 설명은 *LLM이 도구에 대해 알기를 원하는 것*입니다.
+
+이전 문자열을 LLM의 입력의 일부로 전달하면, 모델은 이것을 도구로 인식하고, 입력으로 무엇을 전달해야 하는지와 출력으로 무엇을 기대해야 하는지 알게 될 것입니다.
+
+추가 도구를 제공하려면, 항상 동일한 형식을 사용해야 합니다. 이 과정은 취약할 수 있으며, 우리는 실수로 일부 세부사항을 놓칠 수 있습니다.
+
+더 나은 방법이 있을까요?
+
+### 도구 섹션 자동 포맷팅
+
+우리의 도구는 Python으로 작성되었으며, 구현은 이미 우리가 필요한 모든 것을 제공합니다:
+
+- 무엇을 하는지에 대한 설명적인 이름: `calculator`
+- 함수의 docstring 주석으로 제공되는 더 긴 설명: `두 정수를 곱합니다.`
+- 입력과 그 타입: 함수는 명확하게 두 개의 `int`를 기대합니다.
+- 출력의 타입.
+
+사람들이 프로그래밍 언어를 사용하는 데는 이유가 있습니다: 그것들은 표현력이 있고, 간결하며, 정확합니다.
+
+우리는 Python 소스 코드를 LLM을 위한 도구의 _명세_로 제공할 수 있지만, 도구가 어떻게 구현되었는지는 중요하지 않습니다. 중요한 것은 이름, 무엇을 하는지, 기대하는 입력과 제공하는 출력입니다.
+
+우리는 Python의 내성 기능을 활용하여 소스 코드를 활용하고 도구 설명을 자동으로 만들 것입니다. 필요한 것은 도구 구현이 타입 힌트, docstring, 그리고 합리적인 함수 이름을 사용하는 것뿐입니다. 우리는 소스 코드에서 관련 부분을 추출하는 코드를 작성할 것입니다.
+
+작업이 끝나면, `calculator` 함수가 도구임을 나타내기 위해 Python 데코레이터만 사용하면 됩니다:
+
+```python
+@tool
+def calculator(a: int, b: int) -> int:
+    """두 정수를 곱합니다."""
+    return a * b
+
+print(calculator.to_string())
+```
+
+함수 정의 앞에 있는 `@tool` 데코레이터를 주목하세요.
+
+다음에 볼 구현으로, 우리는 데코레이터가 제공하는 `to_string()` 함수를 통해 소스 코드에서 다음 텍스트를 자동으로 검색할 수 있을 것입니다:
+
+```text
+도구 이름: calculator, 설명: 두 정수를 곱합니다., 인수: a: int, b: int, 출력: int
+```
+
+보시다시피, 이전에 수동으로 작성한 것과 동일합니다!
+
+### 일반 도구 구현
+
+도구가 필요할 때마다 재사용할 수 있는 일반적인 `Tool` 클래스를 만듭니다.
+
+> **면책 조항:** 이 예제 구현은 가상이지만 대부분의 라이브러리의 실제 구현과 매우 유사합니다.
+
+```python
+class Tool:
+    """
+    재사용 가능한 코드 조각(도구)을 나타내는 클래스.
+    
+    속성:
+        name (str): 도구의 이름.
+        description (str): 도구가 하는 일에 대한 텍스트 설명.
+        func (callable): 이 도구가 감싸는 함수.
+        arguments (list): 인수의 목록.
+        outputs (str or list): 감싸진 함수의 반환 타입(들).
+    """
+    def __init__(self, 
+                 name: str, 
+                 description: str, 
+                 func: callable, 
+                 arguments: list,
+                 outputs: str):
+        self.name = name
+        self.description = description
+        self.func = func
+        self.arguments = arguments
+        self.outputs = outputs
+
+    def to_string(self) -> str:
+        """
+        도구의 문자열 표현을 반환합니다,
+        이름, 설명, 인수, 출력을 포함합니다.
+        """
+        args_str = ", ".join([
+            f"{arg_name}: {arg_type}" for arg_name, arg_type in self.arguments
+        ])
+        
+        return (
+            f"도구 이름: {self.name},"
+            f" 설명: {self.description},"
+            f" 인수: {args_str},"
+            f" 출력: {self.outputs}"
+        )
+
+    def __call__(self, *args, **kwargs):
+        """
+        제공된 인수로 기본 함수(callable)를 호출합니다.
+        """
+        return self.func(*args, **kwargs)
+```
+
+복잡해 보일 수 있지만, 천천히 살펴보면 무엇을 하는지 알 수 있습니다. 다음을 포함하는 **`Tool`** 클래스를 정의합니다:
+
+- **`name`** (*str*): 도구의 이름.
+- **`description`** (*str*): 도구가 하는 일에 대한 간단한 설명.
+- **`function`** (*callable*): 도구가 실행하는 함수.
+- **`arguments`** (*list*): 예상되는 입력 매개변수.
+- **`outputs`** (*str* 또는 *list*): 도구의 예상 출력.
+- **`__call__()`**: 도구 인스턴스가 호출될 때 함수를 호출합니다.
+- **`to_string()`**: 도구의 속성을 텍스트 표현으로 변환합니다.
+
+다음과 같은 코드로 이 클래스를 사용하여 도구를 만들 수 있습니다:
+
+```python
+calculator_tool = Tool(
+    "calculator",                   # 이름
+    "두 정수를 곱합니다.",       # 설명
+    calculator,                     # 호출할 함수
+    [("a", "int"), ("b", "int")],   # 입력 (이름과 타입)
+    "int",                          # 출력
+)
+```
+
+하지만 Python의 `inspect` 모듈을 사용하여 모든 정보를 자동으로 검색할 수도 있습니다! 이것이 바로 `@tool` 데코레이터가 하는 일입니다.
+
+> 관심이 있다면, 다음 섹션을 펼쳐서 데코레이터 구현을 살펴볼 수 있습니다.
+
+<details>
+<summary> 데코레이터 코드</summary>
+
+```python
+def tool(func):
+    """
+    주어진 함수에서 Tool 인스턴스를 생성하는 데코레이터.
+    """
+    # 함수 시그니처 가져오기
+    signature = inspect.signature(func)
+    
+    # 입력에 대한 (param_name, param_annotation) 쌍 추출
+    arguments = []
+    for param in signature.parameters.values():
+        annotation_name = (
+            param.annotation.__name__ 
+            if hasattr(param.annotation, '__name__') 
+            else str(param.annotation)
+        )
+        arguments.append((param.name, annotation_name))
+    
+    # 반환 어노테이션 결정
+    return_annotation = signature.return_annotation
+    if return_annotation is inspect._empty:
+        outputs = "반환 어노테이션 없음"
+    else:
+        outputs = (
+            return_annotation.__name__ 
+            if hasattr(return_annotation, '__name__') 
+            else str(return_annotation)
+        )
+    
+    # 함수의 docstring을 설명으로 사용 (없으면 기본값)
+    description = func.__doc__ or "설명이 제공되지 않았습니다."
+    
+    # 함수 이름이 Tool 이름이 됨
+    name = func.__name__
+    
+    # 새로운 Tool 인스턴스 반환
+```
+</details> 
