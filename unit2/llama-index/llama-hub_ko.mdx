@@ -1,0 +1,46 @@
+# LlamaHub 소개
+
+**LlamaHub는 LlamaIndex 내에서 사용할 수 있는 수백 개의 통합, 에이전트 및 도구의 레지스트리입니다.**
+
+![LlamaHub](https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit2/llama-index/llama-hub.png)
+
+이 과정에서 다양한 통합을 사용할 것이므로, 먼저 LlamaHub와 이것이 어떻게 도움이 될 수 있는지 살펴보겠습니다.
+
+필요한 컴포넌트의 종속성을 찾고 설치하는 방법을 살펴보겠습니다.
+
+## 설치
+
+LlamaIndex 설치 지침은 **[LlamaHub](https://llamahub.ai/)에 잘 구성된 개요**로 제공됩니다.
+처음에는 조금 복잡해 보일 수 있지만, 대부분의 **설치 명령은 일반적으로 기억하기 쉬운 형식**을 따릅니다:
+
+```bash
+pip install llama-index-{component-type}-{framework-name}
+```
+
+[Hugging Face inference API 통합](https://llamahub.ai/l/llms/llama-index-llms-huggingface-api?from=llms)을 사용하여 LLM 컴포넌트에 대한 종속성을 설치해 보겠습니다.
+
+```bash
+pip install llama-index-llms-huggingface-api
+```
+
+## 사용법
+
+설치가 완료되면 사용 패턴을 확인할 수 있습니다. 가져오기 경로가 설치 명령을 따른다는 것을 알 수 있습니다!
+아래에서 **LLM 컴포넌트를 위한 Hugging Face inference API**의 사용 예시를 볼 수 있습니다.
+
+```python
+from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
+
+llm = HuggingFaceInferenceAPI(
+    model_name="Qwen/Qwen2.5-Coder-32B-Instruct",
+    temperature=0.7,
+    max_tokens=100,
+    token="hf_xxx",
+)
+
+llm.complete("Hello, how are you?")
+# I am good, how can I help you today?
+```
+
+훌륭합니다, 이제 우리는 필요한 컴포넌트에 대한 통합을 찾고, 설치하고, 사용하는 방법을 알게 되었습니다.
+**컴포넌트에 대해 더 깊이 알아보고** 이를 사용하여 자신만의 에이전트를 구축하는 방법을 살펴보겠습니다. 
