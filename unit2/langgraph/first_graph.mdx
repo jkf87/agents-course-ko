@@ -1,0 +1,249 @@
+# 첫 번째 LangGraph 구축하기
+
+이제 구성 요소를 이해했으니, 첫 번째 기능적인 그래프를 구축하여 실습해 봅시다. Alfred의 이메일 처리 시스템을 구현해 볼 것입니다. 이 시스템에서는 다음과 같은 기능이 필요합니다:
+
+1. 수신된 이메일 읽기
+2. 스팸 또는 정상 이메일로 분류하기
+3. 정상 이메일에 대한 예비 응답 초안 작성하기
+4. 정상 이메일일 경우 Wayne 씨에게 정보 전송하기(출력만)
+
+이 예제는 LLM 기반 의사 결정이 포함된 워크플로우를 LangGraph로 구조화하는 방법을 보여줍니다. 이 예제는 사용되는 도구가 없기 때문에 엄밀히 말해 에이전트로 간주할 수는 없지만, 이 섹션은 에이전트보다는 LangGraph 프레임워크를 배우는 데 더 초점을 맞추고 있습니다.
+
+<Tip>
+<a href="https://huggingface.co/agents-course/notebooks/blob/main/unit2/langgraph/mail_sorting.ipynb" target="_blank">이 노트북</a>에서 코드를 따라할 수 있으며, Google Colab에서 실행할 수 있습니다.
+</Tip>
+
+## 우리의 워크플로우
+
+다음은 우리가 구축할 워크플로우입니다:
+<img src="https://huggingface.co/datasets/agents-course/course-images/resolve/main/en/unit2/LangGraph/first_graph.png" alt="First LangGraph"/>
+
+## 환경 설정하기
+
+먼저, 필요한 패키지를 설치합니다:
+
+```python
+%pip install langgraph langchain_openai
+```
+
+다음으로, 필요한 모듈을 가져옵니다:
+
+```python
+import os
+from typing import TypedDict, List, Dict, Any, Optional
+from langgraph.graph import StateGraph, END
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, AIMessage
+```
+
+## 1단계: 상태 정의하기
+
+Alfred가 이메일 처리 워크플로우 동안 추적해야 할 정보를 정의해 봅시다:
+
+```python
+class EmailState(TypedDict):
+    # 처리 중인 이메일
+    email: Dict[str, Any]  # 제목, 발신자, 본문 등을 포함
+    
+    # 분석 및 결정
+    is_spam: Optional[bool]
+    
+    # 응답 생성
+    draft_response: Optional[str]
+    
+    # 처리 메타데이터
+    messages: List[Dict[str, Any]]  # 분석을 위한 LLM과의 대화 추적
+```
+
+> 💡 **팁:** 중요한 정보를 모두 추적할 수 있도록 상태를 충분히 포괄적으로 만들되, 불필요한 세부 사항으로 부풀리지 마세요.
+
+## 2단계: 노드 정의하기
+
+이제 노드를 형성할 처리 함수를 만들어 봅시다:
+
+```python
+# LLM 초기화
+model = ChatOpenAI(temperature=0)
+
+def read_email(state: EmailState):
+    """Alfred가 수신된 이메일을 읽고 로그를 남깁니다"""
+    email = state["email"]
+    
+    # 여기서 초기 전처리를 수행할 수 있습니다
+    print(f"Alfred가 {email['sender']}로부터 받은 이메일을 처리하고 있습니다. 제목: {email['subject']}")
+    
+    # 여기서는 상태 변경이 필요하지 않습니다
+    return {}
+
+def classify_email(state: EmailState):
+    """Alfred가 LLM을 사용하여 이메일이 스팸인지 정상인지 판단합니다"""
+    email = state["email"]
+    
+    # LLM을 위한 프롬프트 준비
+    prompt = f"""
+    집사 Alfred로서, 이 이메일을 분석하여 스팸인지 정상인지 판단하세요.
+    
+    이메일:
+    발신자: {email['sender']}
+    제목: {email['subject']}
+    본문: {email['body']}
+    
+    먼저, 이 이메일이 스팸인지 판단하세요. 스팸이라면 이유를 설명하세요.
+    정상이라면, 이메일을 분류하세요(문의, 불만, 감사 등).
+    """
+    
+    # LLM 호출
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    # 응답을 파싱하는 간단한 로직(실제 앱에서는 더 강력한 파싱이 필요합니다)
+    response_text = response.content.lower()
+    is_spam = "spam" in response_text and "not spam" not in response_text
+    
+    # 스팸인 경우 이유 추출
+    spam_reason = None
+    if is_spam and "reason:" in response_text:
+        spam_reason = response_text.split("reason:")[1].strip()
+    
+    # 정상이면 카테고리 결정
+    email_category = None
+    if not is_spam:
+        categories = ["inquiry", "complaint", "thank you", "request", "information"]
+        for category in categories:
+            if category in response_text:
+                email_category = category
+                break
+    
+    # 추적을 위한 메시지 업데이트
+    new_messages = state.get("messages", []) + [
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": response.content}
+    ]
+    
+    # 상태 업데이트 반환
+    return {
+        "is_spam": is_spam,
+        "spam_reason": spam_reason,
+        "email_category": email_category,
+        "messages": new_messages
+    }
+
+def handle_spam(state: EmailState):
+    """Alfred가 스팸 이메일을 메모와 함께 버립니다"""
+    print(f"Alfred가 이메일을 스팸으로 표시했습니다. 이유: {state['spam_reason']}")
+    print("이메일이 스팸 폴더로 이동되었습니다.")
+    
+    # 이 이메일 처리 완료
+    return {}
+
+def draft_response(state: EmailState):
+    """Alfred가 정상 이메일에 대한 예비 응답을 작성합니다"""
+    email = state["email"]
+    category = state["email_category"] or "general"
+    
+    # LLM을 위한 프롬프트 준비
+    prompt = f"""
+    집사 Alfred로서, 이 이메일에 대한 정중한 예비 응답을 작성하세요.
+    
+    이메일:
+    발신자: {email['sender']}
+    제목: {email['subject']}
+    본문: {email['body']}
+    
+    이 이메일은 다음과 같이 분류되었습니다: {category}
+    
+    Hugg 씨가 검토하고 개인화할 수 있도록 간결하고 전문적인 응답을 작성하세요.
+    """
+    
+    # LLM 호출
+    messages = [HumanMessage(content=prompt)]
+    response = model.invoke(messages)
+    
+    # 추적을 위한 메시지 업데이트
+    new_messages = state.get("messages", []) + [
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": response.content}
+    ]
+    
+    # 상태 업데이트 반환
+    return {
+        "draft_response": response.content,
+        "messages": new_messages
+    }
+
+def notify_mr_hugg(state: EmailState):
+    """Alfred가 Hugg 씨에게 이메일에 대해 알리고 초안 응답을 제시합니다"""
+    email = state["email"]
+    
+    print("\n" + "="*50)
+    print(f"선생님, {email['sender']}로부터 이메일을 받으셨습니다.")
+    print(f"제목: {email['subject']}")
+    print(f"카테고리: {state['email_category']}")
+    print("\n검토를 위한 응답 초안을 준비했습니다:")
+    print("-"*50)
+    print(state["draft_response"])
+    print("="*50 + "\n")
+    
+    # 이 이메일 처리 완료
+    return {}
+```
+
+## 3단계: 라우팅 로직 정의하기
+
+분류 후 어떤 경로를 택할지 결정하는 함수가 필요합니다:
+
+```python
+def route_email(state: EmailState) -> str:
+    """스팸 분류에 따라 다음 단계 결정"""
+    if state["is_spam"]:
+        return "spam"
+    else:
+        return "legitimate"
+```
+
+> 💡 **참고:** 이 라우팅 함수는 분류 노드 이후 어떤 엣지를 따를지 결정하기 위해 LangGraph에 의해 호출됩니다. 반환 값은 조건부 엣지 매핑의 키 중 하나와 일치해야 합니다.
+
+## 4단계: StateGraph 생성 및 엣지 정의하기
+
+이제 모든 것을 연결합니다:
+
+```python
+# 그래프 생성
+email_graph = StateGraph(EmailState)
+
+# 노드 추가
+email_graph.add_node("read_email", read_email)
+email_graph.add_node("classify_email", classify_email)
+email_graph.add_node("handle_spam", handle_spam)
+email_graph.add_node("draft_response", draft_response)
+email_graph.add_node("notify_mr_hugg", notify_mr_hugg)
+
+# 엣지 시작
+email_graph.add_edge(START, "read_email")
+# 엣지 추가 - 흐름 정의
+email_graph.add_edge("read_email", "classify_email")
+
+# classify_email에서 조건부 분기 추가
+email_graph.add_conditional_edges(
+    "classify_email",
+    route_email,
+    {
+        "spam": "handle_spam",
+        "legitimate": "draft_response"
+    }
+)
+
+# 최종 엣지 추가
+email_graph.add_edge("handle_spam", END)
+email_graph.add_edge("draft_response", "notify_mr_hugg")
+email_graph.add_edge("notify_mr_hugg", END)
+
+# 그래프 컴파일
+compiled_graph = email_graph.compile()
+```
+
+LangGraph에서 제공하는 특수 `END` 노드를 사용했음을 주목하세요. 이는 워크플로우가 완료되는 터미널 상태를 나타냅니다.
+
+## 5단계: 애플리케이션 실행하기
+
+정상 이메일과 스팸 이메일로 그래프를 테스트해 봅시다: 
